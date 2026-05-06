@@ -4,7 +4,8 @@ import { formatDistanceToNow } from 'date-fns'
 
 export const revalidate = 1800
 
-function fmt(n: number, digits = 2) {
+function fmt(n: number | null | undefined, digits = 2) {
+  if (n == null || isNaN(n)) return '—'
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
