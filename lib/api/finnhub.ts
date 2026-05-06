@@ -42,8 +42,8 @@ export async function getQuote(symbol: string): Promise<StockQuote | null> {
   return fetchFinnhub(`/quote?symbol=${encodeURIComponent(symbol)}`) as Promise<StockQuote | null>
 }
 
-export async function getMarketNews(): Promise<MarketNewsItem[]> {
-  const data = await fetchFinnhub('/news?category=general')
+export async function getMarketNews(category: 'general' | 'forex' | 'crypto' | 'merger' = 'general'): Promise<MarketNewsItem[]> {
+  const data = await fetchFinnhub(`/news?category=${category}`)
   return (data as MarketNewsItem[]) || []
 }
 

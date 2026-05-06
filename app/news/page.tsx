@@ -1,14 +1,15 @@
 import { Newspaper, TrendingUp, TrendingDown, ArrowUpRight, BarChart2 } from 'lucide-react'
-import { getWsjHeadlines, getFinancialNews } from '@/lib/api/newsapi'
 import { getQuote, getTopBottomPerformers, getMarketNews } from '@/lib/api/finnhub'
 import { formatDistanceToNow } from 'date-fns'
+
+export const revalidate = 1800
 
 function fmt(n: number, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
-function IndexCard({ label, symbol, value, change, changePct }: {
-  label: string; symbol: string; value: number | null; change: number | null; changePct: number | null
+function IndexCard({ label, value, change, changePct }: {
+  label: string; value: number | null; change: number | null; changePct: number | null
 }) {
   const up = (changePct ?? 0) >= 0
   return (
@@ -36,19 +37,25 @@ function IndexCard({ label, symbol, value, change, changePct }: {
 }
 
 export default async function NewsPage() {
-  const [wsjArticles, financialArticles, sp500, nasdaq, dow, performers, marketNews] = await Promise.all([
-    getWsjHeadlines().catch(() => []),
-    getFinancialNews().catch(() => []),
+  const [sp500, nasdaq, dow, performers, generalNews, mergerNews] = await Promise.all([
     getQuote('^GSPC').catch(() => null),
     getQuote('^IXIC').catch(() => null),
     getQuote('^DJI').catch(() => null),
     getTopBottomPerformers().catch(() => ({ top: [], bottom: [] })),
-    getMarketNews().catch(() => []),
+    getMarketNews('general').catch(() => []),
+    getMarketNews('merger').catch(() => []),
   ])
 
-  const allArticles = wsjArticles.length > 0 ? wsjArticles : financialArticles
-
-  const noKeys = allArticles.length === 0 && !sp500
+  // Combine and deduplicate by id, sort by newest
+  const seen = new Set<number>()
+  const allNews = [...generalNews, ...mergerNews]
+    .filter(item => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
+    .sort((a, b) => b.datetime - a.datetime)
+    .slice(0, 20)
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -59,7 +66,7 @@ export default async function NewsPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-zinc-100">News & Markets</h1>
-          <p className="text-xs text-zinc-500 mt-0.5">Wall Street Journal · Stocks · Market News</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Live market news · Stocks · Top performers</p>
         </div>
       </div>
 
@@ -70,9 +77,9 @@ export default async function NewsPage() {
           <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Market Overview</h2>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <IndexCard label="S&P 500" symbol="^GSPC" value={sp500?.c ?? null} change={sp500?.d ?? null} changePct={sp500?.dp ?? null} />
-          <IndexCard label="NASDAQ" symbol="^IXIC" value={nasdaq?.c ?? null} change={nasdaq?.d ?? null} changePct={nasdaq?.dp ?? null} />
-          <IndexCard label="DOW JONES" symbol="^DJI" value={dow?.c ?? null} change={dow?.d ?? null} changePct={dow?.dp ?? null} />
+          <IndexCard label="S&P 500" value={sp500?.c ?? null} change={sp500?.d ?? null} changePct={sp500?.dp ?? null} />
+          <IndexCard label="NASDAQ" value={nasdaq?.c ?? null} change={nasdaq?.d ?? null} changePct={nasdaq?.dp ?? null} />
+          <IndexCard label="DOW JONES" value={dow?.c ?? null} change={dow?.d ?? null} changePct={dow?.dp ?? null} />
         </div>
       </section>
 
@@ -81,48 +88,46 @@ export default async function NewsPage() {
         <section className="lg:col-span-3 space-y-4">
           <div className="flex items-center gap-2">
             <Newspaper size={14} className="text-amber-400" />
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-              {wsjArticles.length > 0 ? 'Wall Street Journal' : 'Top Financial News'}
-            </h2>
+            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Today&apos;s Market News</h2>
           </div>
 
-          {noKeys ? (
+          {allNews.length === 0 ? (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
               <Newspaper size={32} className="text-zinc-700 mx-auto mb-3" />
-              <p className="text-sm font-medium text-zinc-400">Add your API keys to see content</p>
-              <p className="text-xs text-zinc-600 mt-1">NewsAPI key needed for headlines · Finnhub key for stocks</p>
+              <p className="text-sm font-medium text-zinc-400">No news available</p>
+              <p className="text-xs text-zinc-600 mt-1">Add your Finnhub API key to see live market news</p>
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
               <div className="divide-y divide-zinc-800">
-                {allArticles.map((article, i) => (
+                {allNews.map(item => (
                   <a
-                    key={i}
-                    href={article.url}
+                    key={item.id}
+                    href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex gap-4 p-4 hover:bg-zinc-800/50 transition-colors group"
                   >
-                    {article.urlToImage && (
+                    {item.image && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={article.urlToImage}
+                        src={item.image}
                         alt=""
                         className="w-20 h-16 rounded-lg object-cover flex-shrink-0"
                       />
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-zinc-200 font-medium leading-snug group-hover:text-white transition-colors line-clamp-2">
-                        {article.title}
+                        {item.headline}
                       </p>
-                      {article.description && (
-                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{article.description}</p>
+                      {item.summary && (
+                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{item.summary}</p>
                       )}
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] text-zinc-600 font-medium">{article.source.name}</span>
+                        <span className="text-[10px] text-zinc-600 font-medium">{item.source}</span>
                         <span className="text-zinc-700">·</span>
                         <span className="text-[10px] text-zinc-600">
-                          {formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })}
+                          {formatDistanceToNow(new Date(item.datetime * 1000), { addSuffix: true })}
                         </span>
                       </div>
                     </div>
@@ -201,37 +206,6 @@ export default async function NewsPage() {
               )}
             </div>
           </section>
-
-          {/* Market News from Finnhub */}
-          {marketNews.length > 0 && (
-            <section>
-              <div className="flex items-center gap-2 mb-3">
-                <BarChart2 size={14} className="text-violet-400" />
-                <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Market Buzz</h2>
-              </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
-                <div className="divide-y divide-zinc-800">
-                  {marketNews.slice(0, 5).map(item => (
-                    <a
-                      key={item.id}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 p-3 hover:bg-zinc-800/50 transition-colors group"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-zinc-300 leading-snug group-hover:text-white line-clamp-2">
-                          {item.headline}
-                        </p>
-                        <p className="text-[10px] text-zinc-600 mt-1">{item.source}</p>
-                      </div>
-                      <ArrowUpRight size={11} className="text-zinc-700 group-hover:text-zinc-400 flex-shrink-0 mt-0.5" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
         </div>
       </div>
     </div>

@@ -9,6 +9,8 @@ import { prisma } from '@/lib/prisma'
 import { refreshAccessToken, getEvents } from '@/lib/api/google-calendar'
 import { formatDistanceToNow, format } from 'date-fns'
 
+export const revalidate = 1800
+
 function fmt(n: number, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
