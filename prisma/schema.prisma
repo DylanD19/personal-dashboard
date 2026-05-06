@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Todo {
+  id        String    @id @default(cuid())
+  title     String
+  completed Boolean   @default(false)
+  priority  Priority  @default(MEDIUM)
+  dueDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  name         String
+  color        String        @default("#7c3aed")
+  icon         String?
+  transactions Transaction[]
+  budgets      Budget[]
+  createdAt    DateTime      @default(now())
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  amount      Float
+  description String
+  type        TransactionType
+  date        DateTime
+  categoryId  String?
+  category    Category?       @relation(fields: [categoryId], references: [id])
+  plaidTxId   String?         @unique
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Budget {
+  id         String       @id @default(cuid())
+  name       String
+  amount     Float
+  period     BudgetPeriod @default(MONTHLY)
+  categoryId String?
+  category   Category?    @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model NetWorthSnapshot {
+  id        String   @id @default(cuid())
+  amount    Float
+  note      String?
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+}
+
+model PlaidItem {
+  id              String    @id @default(cuid())
+  accessToken     String
+  itemId          String    @unique
+  institutionName String?
+  lastSync        DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model GoogleToken {
+  id           String   @id @default("singleton")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
